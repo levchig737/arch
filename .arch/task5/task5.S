@@ -1,0 +1,151 @@
+.include "my-macro"
+.include "my-func"
+
+.data
+
+delta:  .byte 0x30
+
+.bss
+
+        .lcomm summ, 2          # Сумма
+        .lcomm out, 6           # Вывод на экран
+        .lcomm c, 1             # Прочитанный символ
+        .lcomm array, 65535     # Буфер для хранения цифр
+        .lcomm arr_size, 65535  # Сколько занято памяти в массиве
+        .lcomm step, 1          # Шаг
+
+.text
+
+.global _start                  # Точка входа объявлена глобальной меткой
+
+_start:                         # Точка входа
+
+input:
+        Puts "Введите цифры\n"
+show_prompt:
+        Getchar $c              # макровызов ввода символа со стандартного ввода
+
+        cmpl $0, %eax           # Конец файл - EOF (введено 0 символов) ?
+        je exit_succesful       # Да - на завершение программы
+
+        cmpb $'\n', c           # это символ перевода строки ?
+        je print_sum            # Да - на прибавление числа к  сумме
+
+        cmpb $'9', c            # код больше кода символа '9' ?
+        ja print_err_msg        # ДА - на вывод сообщения об ошибке
+        cmpb $'0', c            # код меньше кода символа '0' ?
+        jb print_err_msg        # ДА - на вывод сообщения об ошибке
+
+        cmpl $65535, arr_size   # Проверяем  размер массива
+        je err_memory_over	# Больше 65535? Да - вывод ошибки.Выход.
+
+        xorw %ax, %ax		# Обнуляем 
+
+        movb c, %al             # код из n пишем в %al
+        subb $0x30, %al         # Получаем число из кода
+        movw arr_size, %si      # Получаем текущую позицию в массиве
+        movb %al, array(%esi)   # Записываем из %al в array по адресу %esi
+        incw %si                # Увеличиваем %si на 1
+        movw %si, arr_size      # и записываем новый адрес в переменную
+
+        jmp show_prompt		# Переход к началу
+
+print_sum:
+        call print_summ         # Вызываем функцию вывода суммы
+
+        jmp input               # Переход к началу
+
+print_err_msg:
+        Puts "Не цифровая клавиша. Повторите ввод\n"    # вывод сообщения об ошибке
+ 
+        jmp show_prompt         # на ввод следующего символа
+
+err_memory_over:
+        Puts "Массив заполнен\n"        # вывод сообщения об ошибке
+        Exit $0
+
+exit_succesful:
+        call print_summ         # Вызываем функцию вывода суммы
+	Exit $0
+
+
+
+
+update_summ:
+        xorl %esi, %esi         # Обнуляем %esi
+        movw step, %si          # Копируем шаг в %esi
+
+        decl %esi               # Уменьшаем %esi на 1 (нулевой элемент будем считать первым)
+
+        xorl %eax, %eax         # Обнуляем %eax
+        movw $0, summ           # Обнуляем summ
+
+update_begin:
+        cmpl arr_size, %esi     # Сравниваем размер массива со следующим элементом
+        jg update_exit
+
+        movb array(%esi), %al   # Копируем элемент массива в %al
+        addw %ax, summ          # Прибавляем %ax к summ
+        jc err_over             # Выход, если переполнение
+
+        addl step, %esi         # Переходим к следущему элементу
+        jmp update_begin
+
+update_exit:
+        ret                     # выходим
+
+err_over:
+        Puts "Произошло переполнение. Выход.\n" # вывод сообщения об ошибке
+        Exit $1
+
+
+
+
+
+print_summ:
+        Puts "Сумма цифр, на позициях кратным: \n"
+
+        movw $2, step           # Устанавливаем первый шаг для вычислений
+
+print_begin:
+        ToString10 step         # Преобразуем шаг в символ
+        Puts "-м(ми):  "	# Выводим для красоты
+
+        call update_summ        #  Узнаём сумму элементов
+        ToString10 summ         # Преобразуем сумму в символы
+        Puts "\n"
+
+step_choose:			# Функция для последовательной установки значения step
+
+        cmpl $2, step		# step = 2?
+	je step3		# переход к step3
+
+        cmpl $3, step
+        je step4
+
+        cmpl $4, step
+        je step8
+
+	movw $0, summ		# Обнуляем все переменные для следующего набора чисел
+	movw $0, array
+	movw $0, arr_size
+        jmp print_exit          # Прошли все шаги, выходим
+
+step3:
+        movw $3, step		# Устанавливаем следующее значение шага 
+        jmp print_begin		# Переход к началу вывода суммы
+
+step4:
+        movw $4, step
+        jmp print_begin
+
+step8:
+        movw $8, step
+        jmp print_begin
+
+print_exit:
+        ret                     # Выход из процедуры
+
+
+.end
+

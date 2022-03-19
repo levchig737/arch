@@ -1,0 +1,200 @@
+.include "my-macro"
+.include "my-func"
+# Макрос перевода числа в строку с основанием 10. Number - число(2 байта), String буфер, куда помещаеся строка(6 байт)
+.macro ToString2b Number, String
+
+	movw $10, %bx		# Система счисления. На неё будем делить
+	movl $4, %esi		# Адрес самого первого чила. В числе не может быть больше 5 чисел, поэтому устанавливаем смещение на 4
+	movw \Number, %ax	# Копируем номер в %ax
+	xorl %edi, %edi		# Обнуляем %edi
+
+ToStr2b_begin\@:		  	# Начало цикла
+	movl $0, %edx		# Обнуляем %edx (В нём после операции будет остаток)
+	divw %bx		# Делим %ax на %bx, остаток в %dx
+	addb $0x30, %dl		# Прибавляем к %dl 0x30, чтобы перейти к коду числа. Остаток влезает в %dl потому что делим на 10(Отсекается 1 число).
+	movb %dl, \String(%esi)	# Копируем содержимое %dl в буфер по нужному смещению
+
+	cmpw $0, %ax		# Дошли до нуля? (В %ax пусто?)
+	je ToStr2b_memcpy\@	# Да, заканчиваем преобразование
+
+	decl %esi		# Нет, уменьшаем %esi на 1
+	jmp ToStr2b_begin\@	# и переходим в начало цикла
+
+ToStr2b_memcpy\@:	
+	cmpl  $5, %esi		# В %esi 5?
+	je ToStr2b_end\@	# Да, выходим
+	
+	movb \String(%esi), %al # Копируем байт по адресу  String(%esi) в %al
+	movb $0, \String(%esi)	# Записываем 0 по адресу String(%esi)
+	movb %al, \String(%edi)	# Записываем значение %al по адресу String(%edi)
+	inc %esi		# Увеличиваем %esi на 1
+	inc %edi		# Увеличиваем %edi на 1
+	jmp ToStr2b_memcpy\@	# Переходим в начало цикла
+
+ToStr2b_end\@:
+	movb $0, \String(%edi)
+.endm
+	
+.data
+
+delta:	.byte 0x30
+	
+.bss
+
+	.lcomm summ, 2		# Здесь храним сумму. Размер 2 байта
+
+	.lcomm out, 6		# То, что выводим на экран
+	.lcomm c, 1		# Здесь храним последний прочитанный символ
+	.lcomm n, 1		# Здесь храмим предпоследний прочитанный символ
+	.lcomm array, 655355	# Буфер для хранения цифр
+	.lcomm arr_size, 2	# Сколько занято памяти в массиве
+	.lcomm step, 4		# Шаг
+.text
+	
+# Процедура расчёта суммы. Без параметров.
+.type   update_summ, @function
+
+update_summ:
+
+	xorl %esi, %esi 	# Обнуляем %esi
+	movw step, %si		# Копируем шаг в %esi
+	
+	decl %esi		# Уменьшаем %esi на 1 (нулевой элемент будем считать первым)
+		
+	xorl %eax, %eax		# Обнуляем %eax
+	movw $0, summ		# Обнуляем summ
+
+update_begin:
+
+	cmpl arr_size, %esi	# Сравниваем размер массива со следующим элементом
+	jg update_exit
+	
+
+	
+	movb array(%esi), %al	# Копируем элемент массива в %al
+	addw %ax, summ		# Прибавляем %ax к summ
+	jc err_over		# Выход, если переполнение
+	
+	addl step, %esi		# Переходим к следущему элементу
+	jmp update_begin
+
+update_exit:	
+	ret			# выходим
+	
+err_over:	
+	Puts "Произошло переполнение. Выход.\n"	# вывод сообщения об ошибке
+	Exit $1
+
+
+
+# Процедура вывода суммы. Без параметров
+.type   print_summ, @function
+	
+print_summ:
+	Puts "Сумма цифр, на позициях кратным: \n"
+
+	movw $2, step		# Устанавливаем первый шаг для вычислений
+	
+print_begin:
+	
+	ToString2b step, out	# Преобразуем шаг в символ
+	Write out		# И вывоим его
+	Puts "-м = "		
+	
+	call update_summ	#  Узнаём сумму элементов
+	
+	ToString2b summ, out	# Преобразуем сумму в символы
+	Write out		# и выводим
+	Puts "\n"
+
+# Узнаём текущий шаг и переходим к следующиму
+	cmpl $2, step
+	je step3
+
+	cmpl $3, step
+	je step4
+
+	cmpl $4, step
+	je step8
+	
+	jmp print_exit 		# Прошли все шаги, выходим
+
+step3:
+	movw $3, step
+	jmp print_begin
+step4:
+	movw $4, step
+	jmp print_begin
+step8:
+	movw $8, step
+	jmp print_begin
+
+	
+print_exit:
+	
+	ret			# Выход из процедуры
+
+
+
+
+	
+.global _start 			# Точка входа объявлена глобальной меткой
+
+_start:				# Точка входа
+
+input:	
+	Puts "Введите цифру\n"
+	
+show_prompt:
+	Getchar $c		# макровызов ввода символа со стандартного ввода
+	    
+	cmpl $0, %eax		# Конец файл - EOF (введено 0 символов) ? 
+	je exit_succesful	# Да - на завершение программы
+	
+	cmpb $'\n', c 		# это символ перевода строки ?
+	je print_sum 		# Да - на прибавление числа к  сумме
+
+	jmp add_number
+		
+add_number:	
+	cmpb $'9', n  		# код больше кода символа '9' ?
+	ja print_err_msg	# ДА - на вывод сообщения об ошибке
+	cmpb $'0', n		# код меньше кода символа '0' ?
+	jb print_err_msg	# ДА - на вывод сообщения об ошибке
+
+	cmpl $65535, arr_size
+	je memory_over
+	
+	xorw %ax, %ax
+	
+	movb n, %al         	# код из n пишем в %al
+	subb $0x30, %al		# Получаем число из кода
+	movw arr_size, %si	# Получаем текущую позицию в массиве
+	movb %al, array(%esi)	# Записываем из %al в array по адресу %esi
+	incw %si		# Увеличиваем %si на 1
+	movw %si, arr_size	# и записываем новый адрес в переменную
+
+	jmp show_prompt
+
+print_sum:	
+
+	call print_summ		# Вызываем функцию вывода суммы
+	
+	jmp input		# На ввод
+	
+print_err_msg:
+	Puts "Не цифровая клавиша. Повторите ввод\n"	# вывод сообщения об ошибке
+	jmp show_prompt 	# на ввод следующего символа
+	
+memory_over:	
+	Puts "Массив заполнен\n"	# вывод сообщения об ошибке
+	Exit $2
+	
+exit_succesful:
+	
+	call print_summ		# Вызываем функцию вывода суммы
+	
+stop:
+	Exit $0 		# Выход
+
+.end

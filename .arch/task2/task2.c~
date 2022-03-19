@@ -1,0 +1,14 @@
+/* 
+ * task2 - Программа вычисляющая факториал, аналог task2.S
+*/
+#include <stdio.h>
+
+int main(void){
+    int n = 5;
+    int i = 1;
+    if (n > 0){
+        rez = n * i;
+	n--;
+    }else
+	return 0;
+}
