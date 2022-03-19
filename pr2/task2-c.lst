@@ -1,0 +1,48 @@
+GAS LISTING task2-c.S 			page 1
+
+
+   1              		.file	"task2.c"
+   2              		.text
+   3              		.globl	main
+   4              		.type	main, @function
+   5              	main:
+   6              	.LFB0:
+   7              		.cfi_startproc
+   8 0000 55       		pushl	%ebp
+   9              		.cfi_def_cfa_offset 8
+  10              		.cfi_offset 5, -8
+  11 0001 89E5     		movl	%esp, %ebp
+  12              		.cfi_def_cfa_register 5
+  13 0003 83EC10   		subl	$16, %esp
+  14 0006 C745FC05 		movl	$5, -4(%ebp)
+  14      000000
+  15 000d C745F801 		movl	$1, -8(%ebp)
+  15      000000
+  16 0014 EB0E     		jmp	.L2
+  17              	.L3:
+  18 0016 8B45F8   		movl	-8(%ebp), %eax
+  19 0019 0FAF45FC 		imull	-4(%ebp), %eax
+  20 001d 8945F8   		movl	%eax, -8(%ebp)
+  21 0020 836DFC01 		subl	$1, -4(%ebp)
+  22              	.L2:
+  23 0024 837DFC00 		cmpl	$0, -4(%ebp)
+  24 0028 7FEC     		jg	.L3
+  25 002a B8000000 		movl	$0, %eax
+  25      00
+  26 002f C9       		leave
+  27              		.cfi_restore 5
+  28              		.cfi_def_cfa 4, 4
+  29 0030 C3       		ret
+  30              		.cfi_endproc
+  31              	.LFE0:
+  32              		.size	main, .-main
+  33              		.ident	"GCC: (GNU) 7.5.0"
+  34              		.section	.note.GNU-stack,"",@progbits
+GAS LISTING task2-c.S 			page 2
+
+
+DEFINED SYMBOLS
+                            *ABS*:0000000000000000 task2.c
+           task2-c.S:5      .text:0000000000000000 main
+
+NO UNDEFINED SYMBOLS
