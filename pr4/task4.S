@@ -13,7 +13,8 @@
         summ: .short 0	# Переменная для хранения суммы 
 	num_system: .short 0 # Переменная для номера с.с.
 	count_num: .long 0 # Кол-во возможных цифр в с.с.
-	str_len: .long 0 # Кол-во цифр в числе для вывода 
+	str_len: .long 0 # Кол-во цифр в числе для вывода
+	flag_minus: .long 0 # Флаг минуса суммы
 	
 .bss
         .lcomm c, 1               # Буфер для чтения текущего символа. Размер - 1 байт
@@ -31,8 +32,10 @@ input:
 show_prompt:
         Getchar $c              # макровызов ввода символа со стандартного ввода
         Cmpl $0, %eax           # Конец файл - EOF (введено 0 символов) ?
-        je print_summ_numbers_10         # Да - вывод суммы
+        je stop	                # Да - вывод суммы
 
+	movl $0, flag_minus # Обновляем флаг минуса
+	
 	cmpb $'\n', c           # это символ перевода строки ?
         je print_summ_numbers_10   # да - вывод суммы
 
@@ -54,7 +57,7 @@ plus_numb:
 
 	subb delta, %al		# Получаем число из кода
 	addw %ax, summ		# Прибавляем число к сумме
-	jc err_buf_over		# Проверяем на переполнение
+	jo err_buf_over		# Проверяем на переполнение
 
 	jmp show_prompt
 
@@ -67,7 +70,7 @@ minus_numb:
         subb delta, %al         # Получаем число из кода
 
         subw %ax, summ          # Прибавляем число к сумме
-	jc err_buf_over         # Проверяем на переполнение
+	jo err_buf_over         # Проверяем на переполнение
 
         jmp show_prompt
 	
@@ -107,6 +110,9 @@ ToString:
         xorl %edi, %edi         # Обнуляем %edi
 	xorl %ecx, %ecx
 
+	cmpw $0, summ
+	jl ToStr_begin_minus
+	
 ToStr_begin:           # Начало цикла
 	incl %ecx               # Счетчик длины строки вывода
         movl $0, %edx           # Обнуляем %edx (В нём после операции будет остаток)
@@ -120,9 +126,23 @@ ToStr_begin:           # Начало цикла
         decl %esi               # Нет, уменьшаем %esi на 1
         jmp ToStr_begin     	# и переходим в начало циклa
 
+ToStr_begin_minus:
+	movl $1, flag_minus
+		
+	negw summ
+
+	movw summ, %ax 		# Копируем номер в %ax
+	
+	jmp ToStr_begin
+	
+	
 some_changes:
 	incl count_num  # Прибавляем 1 для сравнения
 	movl %ecx, str_len # Счетчик для длины строки вывода
+
+Pre_out:
+	cmpl $1, flag_minus
+	je ToStr_out_minus	
 	
 ToStr_out:
         cmpl count_num, %esi  # В %esi макс. кол-во цифр с.с.? (5 в 10 сс)
@@ -135,6 +155,16 @@ ToStr_out:
         inc %edi                # Увеличиваем %edi на 1
         jmp ToStr_out    	# Переходим в начало цикла
 
+ToStr_out_minus:
+	movb $45, out10(%edi) 	# Записываем минус по адресу out(%edi)
+	incl %edi
+	addl $1, str_len
+	jmp ToStr_out                    
+
+neg_summ:
+	negw summ
+	jmp input
+	
 stop_to_string:   # Вывод суммы
 	movl $4, %eax		# номер сист. вызова write
 	movl $1, %ebx		# параметр 1: дескриптор стандартного вывода	
@@ -149,6 +179,9 @@ stop_to_string:   # Вывод суммы
 
 	cmpw $8, num_system     # Если 8 сс была, то идем к 2 сс
 	je print_summ_numbers_2
+
+	cmpl $1, flag_minus
+	je neg_summ
 	
 	jmp input # К вводу следующего числа
 
