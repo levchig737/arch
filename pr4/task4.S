@@ -10,7 +10,7 @@
 
 .data
 	delta: .byte 0x30	# Переменная для получения из кода символа его числовое представление в c.c
-        summ: .short 0	# Переменная для хранения суммы 
+        summ: .short 0 #Переменная для хранения суммы 
 	num_system: .short 0 # Переменная для номера с.с.
 	count_num: .long 0 # Кол-во возможных цифр в с.с.
 	str_len: .long 0 # Кол-во цифр в числе для вывода
@@ -37,7 +37,7 @@ show_prompt:
 	movl $0, flag_minus # Обновляем флаг минуса
 	
 	cmpb $'\n', c           # это символ перевода строки ?
-        je print_summ_numbers_10   # да - вывод суммы
+        je plus_numb
 
 	cmpb $'-', c  # Если число отрицательное
 	je minus_numb
@@ -50,6 +50,8 @@ show_prompt:
         movb c, %al # Передаем значение из с в n
         movb %al, n
 
+	jmp show_prompt
+
 plus_numb:
 	xorw %ax, %ax		# Обнуление %ax для правильной обработки
 
@@ -59,20 +61,49 @@ plus_numb:
 	addw %ax, summ		# Прибавляем число к сумме
 	jo err_buf_over		# Проверяем на переполнение
 
-	jmp show_prompt
+	jmp print_summ_numbers_10
 
 minus_numb:
 	Getchar $c
 	xorw %ax, %ax           # Обнуление %ax для правильной обработки
 
+	cmpb $'-', c  # Если число отрицательное
+	je minus_numb
+
+	cmpb $'9', c            # код больше кода символа '9' ?
+        ja print_err            # ДА - на вывод сообщения об ошибке
+        cmpb $'0', c            # код меньше кода символа '0' ?
+        jb print_err            # ДА - на вывод сообщения об ошибке
+	
         movb c, %al             # Присваеваем %al значение c
+        movb %al, n
 
-        subb delta, %al         # Получаем число из кода
+	Getchar $c
+	cmpb $'\n', c
+	je minus
+	
+	cmpb $'-', c  # Если число отрицательное
+	je minus_numb
 
-        subw %ax, summ          # Прибавляем число к сумме
-	jo err_buf_over         # Проверяем на переполнение
+	cmpb $'9', c            # код больше кода символа '9' ?
+        ja print_err            # ДА - на вывод сообщения об ошибке
+        cmpb $'0', c            # код меньше кода символа '0' ?
+        jb print_err            # ДА - на вывод сообщения об ошибке
+
+	xorw %ax, %ax           # Обнуление %ax для правильной обработки
+
+        movb c, %al             # Присваеваем %al значение c
+        movb %al, n
 
         jmp show_prompt
+
+minus:
+	xorw %ax, %ax
+	movb n, %al
+	subb delta, %al
+	subw %ax, summ          
+	jo err_buf_over
+	jmp print_summ_numbers_10
 	
 print_err:
 	Puts "Не цифровая клавиша. Повторите ввод"	# вывод сообщения об ошибке
@@ -85,19 +116,19 @@ err_buf_over:
 print_summ_numbers_10:
 	Puts "Сумма введенных чисел в 10 с.с.: "
         movw $10, num_system  
-	movw $4, count_num
+	movw $5, count_num
 	jmp ToString
 
 print_summ_numbers_8:	
 	Puts "Сумма введенных чисел в 8 с.с.: "
         movw $8, num_system
-	movw $5, count_num
+	movw $6, count_num
 	jmp ToString
 
 print_summ_numbers_2:	
 	Puts "Сумма введенных чисел в 2 с.с.: "
         movw $2, num_system
-	movw $15, count_num
+	movw $16, count_num
 	jmp ToString
 
 stop:
